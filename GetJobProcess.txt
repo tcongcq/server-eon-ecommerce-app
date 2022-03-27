@@ -1,0 +1,25 @@
+Bước 1:
+	Job được thêm mới vào DB hoặc Job được reactive lại sẽ được đồng bộ vào Redis phân Job.
+	Phân 2 loại là jobDefault và jobPriority
+
+Bước 2:
+	- Worker vào nhận Job. Đầu tiên sẽ check và lấy ra danh sách Job đã làm của Worker, dùng danh sách đó so sánh với jobPriority trước, nếu toàn bộ đã thực hiện chuyển sang so sánh với jobDefault. So sánh cho đến khi có jobID mà Worker chưa từng thực hiện trước đó.
+	- Bắt đầu jobID (lock) cho riêng request, không cho request khác access vào jobID này. Nếu không giữ được jobID (trường hợp đã bị request khác giữ trước) quay lại đầu bước 2 với điều kiện loại trừ jobID đang chọn.
+	- Nếu sau khi duyệt tất cả các trường hợp khả thi không thể tìm dược jobID thì dừng lại và trả về job rỗng.
+	- Nếu có dùng jobID nhận được, request vào Redis lấy thông tin tạm thời của Job đang có trên redis.
+		Bao gồm: jobObject, jobQuantity, jobCountIsRun, get increase jobViewer, get increase jobWorker, jobHidden.
+	- Nếu jobViewer >= jobQuantity:
+		Gọi api đồng bộ thông tin lên database, xoá thông tin về job và trả về 404, không có job.
+	- Nếu count_is_run >= quantity:
+		Cập nhật message "Thành công", gọi api đồng bộ thông tin lên database, xoá thông tin về job và trả về 404, không có job.
+	- Nếu hidden >= quantity:
+		Cập nhật message "Thất bại", gọi api đồng bộ thông tin lên database, xoá thông tin về job và trả về 404, không có job.
+	- Nếu vượt qua hết các điều kiện, merge các thông tin riêng lẻ vào jobObject và trả về Worker.
+
+Bước 3:
+	Worker nhận được Job. Sẽ làm theo 2 phương án: 
+		a. Call Api: Hoàn thành job, gọi sang bước 4.1;
+		b. Call Api: Không thể hoàn thành job, gọi bước 4.2;
+
+Bước 4:
+	Các Job đã đủ điều kiện. Thực hiện quy trình tính tiền.
