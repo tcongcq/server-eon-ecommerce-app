@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const Job = require('../models/Job');
 const Redis     = require('ioredis');
-const client    = new Redis({ host: "103.130.213.77" });
+const client    = new Redis({ host: "188.166.236.27" });
 const redlock   = require('ioredis-lock').createLock(client);
 const uuid 	= require("uuid");
 
