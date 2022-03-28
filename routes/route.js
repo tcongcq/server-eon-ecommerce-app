@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const Job = require('../models/Job');
 const Redis     = require('ioredis');
-const client    = new Redis({ host: "188.166.236.27" });
+const client    = new Redis({ host: "103.130.213.77" });
 // const redlock   = require('ioredis-lock').createLock(client, {timeout: 20000, retries: 3, delay: 100});
 const Redlock = require('redlock');
 const redlock = new Redlock(
@@ -58,6 +58,8 @@ const JobDivision = function(redisClient){
     };
     self.getValidJobID = async function(availJobIds){
         let listJob = availJobIds.filter((i)=>{return self.jobPass.indexOf(i) < 0}).sort();
+        if (listJob && listJob.length > 0 && listJob[0].substring(0, 1) != 'F')
+            listJob = listJob.sort(()=>{return 0.5 - Math.random()});
         let jobId = listJob.shift();
         if (!jobId) return null;
         let lockKey = [REDIS_KEY_JOB.lock, jobId.substring(1)].join(':');
