@@ -6,7 +6,7 @@ const client    = new Redis({ host: "103.130.213.77" });
 // const redlock   = require('ioredis-lock').createLock(client, {timeout: 20000, retries: 3, delay: 100});
 const Redlock = require('redlock');
 const redlock = new Redlock(
-    [client], { retryCount: 2, retryDelay: 50 }
+    [client], { retryCount: 1, retryDelay: 20 }
 );
 
 /**** Hằng số quy định phân loại các key sẽ được ghi vào redis ****/
@@ -19,6 +19,7 @@ const REDIS_KEY_JOB = {
 }
 const LockTimeout = 10000;
 const JobComplete = 'JOB_COMPLETE';
+const JobTrash    = 'JOB_TRASH';
 
 function sleep(ms) {
     return new Promise((resolve) => {
@@ -36,6 +37,7 @@ const JobDivision = function(redisClient){
     self.lockId     = null;
     self.lockJob    = null;
     self.accountId  = null;
+    self.tryTimes   = 0;
 
 	self.saveToRedis = async function(_job){
         try {
@@ -44,8 +46,8 @@ const JobDivision = function(redisClient){
                 redisClient.sadd(REDIS_KEY_JOB.list, jobId),
                 redisClient.hmset([REDIS_KEY_JOB.object, _job._id].join(':'), _job)
             ];
-            if (_job.accountIds && _job.accountIds.length > 0){
-                _job.accountIds.forEach(function(account){
+            if (_job.account_ids && _job.account_ids.length > 0){
+                _job.account_ids.forEach(function(account){
                     if (account)
                         tasks.push(redisClient.sadd([REDIS_KEY_JOB.done, account].join(":"), jobId));
                 });
@@ -57,6 +59,7 @@ const JobDivision = function(redisClient){
         }
     };
     self.getValidJobID = async function(availJobIds){
+        if (self.tryTimes > 10) return null;
         let listJob = availJobIds.filter((i)=>{return self.jobPass.indexOf(i) < 0}).sort();
         if (listJob && listJob.length > 0 && listJob[0].substring(0, 1) != 'F')
             listJob = listJob.sort(()=>{return 0.5 - Math.random()});
@@ -68,6 +71,7 @@ const JobDivision = function(redisClient){
             return jobId;
         } catch (err) {
             self.jobPass.push(jobId);
+            self.tryTimes++;
             return self.getValidJobID(availJobIds);
         }
     };
@@ -108,7 +112,7 @@ const JobDivision = function(redisClient){
         if (jobAccount && jobAccount.length > 0){
             jobAccount.forEach(function(account){
                 if (account)
-                    tasks.push(redisClient.smove([REDIS_KEY_JOB.done, account].join(":"), JobComplete, self.lockId));
+                    tasks.push(redisClient.smove([REDIS_KEY_JOB.done, account].join(":"), JobTrash, self.lockId));
             });
         }
         Promise.all(tasks);
@@ -122,6 +126,7 @@ const JobDivision = function(redisClient){
         self.lockJob    = null;
         self.jobPass    = [];
         self.jobAccount = [];
+        self.tryTimes   = 0;
     };
     self.userGetJob = async function(account_id){
         self.prepare_get_job();
@@ -129,14 +134,15 @@ const JobDivision = function(redisClient){
         let jobId = await self.getJobID();
         if (!jobId) return null;
         let jobKey = [REDIS_KEY_JOB.object, jobId].join(':');
-        await Promise.all([
+        self.jobId     = jobId;
+        let jobObject = await redisClient.hgetall(jobKey);
+        self.jobObject = Object.assign(jobObject, {viewer: parseInt(jobObject.viewer)+1, worker: parseInt(jobObject.worker)+1});
+        Promise.all([
             redisClient.hincrby(jobKey, 'viewer', 1),
             redisClient.hincrby(jobKey, 'worker', 1),
             redisClient.sadd([REDIS_KEY_JOB.done, self.accountId].join(':'), self.lockId),
             redisClient.sadd([REDIS_KEY_JOB.account, jobId].join(':'), self.accountId)
         ]);
-        self.jobId     = jobId;
-        self.jobObject = await redisClient.hgetall(jobKey);
         return self.post_get_job();
     };
     self.post_get_job = async function(){
@@ -155,6 +161,27 @@ const JobDivision = function(redisClient){
         if (viewer <= quantity)
             return job;
         return self.removeJob();
+    };
+    self.cleanDoneJob = async function(){
+        let redisGet = await Promise.all([
+            redisClient.smembers(JobComplete),
+            redisClient.keys([REDIS_KEY_JOB.done, '*'].join(":"))
+        ]);
+        let completeJob = redisGet[0];
+        let accountDone = redisGet[1];
+        console.log(redisGet)
+        if (completeJob.length == 0)
+            return 'Empty key';
+        let tasks = [];
+        completeJob.forEach((jobId)=>{
+            accountDone.forEach(async (accDoneKey)=>{
+                tasks.push(redisClient.smove(accDoneKey, JobTrash, jobId));
+            });
+            tasks.push(redisClient.smove(JobComplete, JobTrash, jobId));
+        });
+        tasks.push(redisClient.del(JobTrash));
+        await Promise.all(tasks);
+        return 'Cleaned';
     };
     /**** Hàm tăng giá trị CountIsRun ****/
     self.increaseJobCount = async function(jobId){
@@ -250,6 +277,12 @@ router.get('/user-get-job', async (req, res) => {
         res.status(200).send(job);
     else
         res.status(400).send('Job not found!');
+});
+
+router.get('/clean-done-job', async (req, res) => {
+    const cacheJob = new JobDivision(client);
+    let clean = await cacheJob.cleanDoneJob();
+    res.status(200).send({count: clean});
 });
 
 router.get('/inc-job-count', async (req, res) => {
