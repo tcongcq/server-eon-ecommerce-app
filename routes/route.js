@@ -322,6 +322,8 @@ router.get('/test-create-job', async (req, res) => {
 });
 
 
+const cron = require('cron');
+const request = require('request');
 const randNum = (min, max) => Math.floor(Math.random() * (max - min)) + min;
 const callUserGetJob = async function(){
     let cacheJob = new JobDivision(client);
@@ -340,7 +342,6 @@ const callRandomTimeGetJob = function(){
         callUserGetJob();
     };
 };
-const cron = require('cron');
 router.get('/test-user-get-job', async (req, res) => {
     const job = new cron.CronJob({
         cronTime: '*/1 * * * * *', // Chạy Jobs mỗi 10 giây
