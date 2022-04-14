@@ -147,9 +147,9 @@ const JobDivision = function(redisClient){
             redisClient.hincrby(jobKey, 'worker', 1),
             redisClient.sadd([REDIS_KEY_JOB.done, self.accountId].join(':'), self.lockId),
             redisClient.sadd([REDIS_KEY_JOB.account, jobId].join(':'), self.accountId),
-            redisClient.setnx([TEST_KEY.quantity, jobId].join('_'), jobObject.quantity),
-            redisClient.incr([TEST_KEY.qtt_count, jobId, 'count'].join('_')),
-            redisClient.rpush([TEST_KEY.qusr_list, jobId, 'quantity_user'].join('_'), account_id)
+            // redisClient.setnx([TEST_KEY.quantity, jobId].join('_'), jobObject.quantity),
+            // redisClient.incr([TEST_KEY.qtt_count, jobId, 'count'].join('_')),
+            // redisClient.rpush([TEST_KEY.qusr_list, jobId, 'quantity_user'].join('_'), account_id)
         ]);
         return self.post_get_job();
     };
