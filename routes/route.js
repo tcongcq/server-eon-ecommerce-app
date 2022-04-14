@@ -2,7 +2,8 @@ const express = require('express');
 const router  = express.Router();
 const Job = require('../models/Job');
 const Redis     = require('ioredis');
-const client    = new Redis({ host: "103.130.213.77" });
+// const client    = new Redis({ host: "103.130.213.77" });
+const client    = new Redis({ host: "localhost" });
 // const redlock   = require('ioredis-lock').createLock(client, {timeout: 20000, retries: 3, delay: 100});
 const Redlock = require('redlock');
 const redlock = new Redlock(
@@ -147,9 +148,9 @@ const JobDivision = function(redisClient){
             redisClient.hincrby(jobKey, 'worker', 1),
             redisClient.sadd([REDIS_KEY_JOB.done, self.accountId].join(':'), self.lockId),
             redisClient.sadd([REDIS_KEY_JOB.account, jobId].join(':'), self.accountId),
-            // redisClient.setnx([TEST_KEY.quantity, jobId].join('_'), jobObject.quantity),
-            // redisClient.incr([TEST_KEY.qtt_count, jobId, 'count'].join('_')),
-            // redisClient.rpush([TEST_KEY.qusr_list, jobId, 'quantity_user'].join('_'), account_id)
+            redisClient.setnx([TEST_KEY.quantity, jobId].join('_'), jobObject.quantity),
+            redisClient.incr([TEST_KEY.qtt_count, jobId, 'count'].join('_')),
+            redisClient.rpush([TEST_KEY.qusr_list, jobId, 'quantity_user'].join('_'), account_id)
         ]);
         return self.post_get_job();
     };
