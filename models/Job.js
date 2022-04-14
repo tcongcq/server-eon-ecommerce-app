@@ -5,8 +5,12 @@ var jobSchema = new Schema({
     quantity: {
         type: Number,
         default: function() {
-            return Math.floor(Math.random()*200) + 50
+            return Math.floor(Math.random()*10000) + 50
         }
+    },
+    temp_id: {
+        type: Number,
+        default: 0
     },
     count_is_run: {
         type: Number,

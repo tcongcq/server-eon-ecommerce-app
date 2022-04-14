@@ -17,6 +17,11 @@ const REDIS_KEY_JOB = {
     object: 'JOB',
     account: 'JOB_MEMBER'
 }
+const TEST_KEY = {
+    quantity: 'TQ',
+    qtt_count: 'TQC',
+    qusr_list: 'TSL'
+}
 const LockTimeout = 10000;
 const JobComplete = 'JOB_COMPLETE';
 const JobTrash    = 'JOB_TRASH';
@@ -141,7 +146,10 @@ const JobDivision = function(redisClient){
             redisClient.hincrby(jobKey, 'viewer', 1),
             redisClient.hincrby(jobKey, 'worker', 1),
             redisClient.sadd([REDIS_KEY_JOB.done, self.accountId].join(':'), self.lockId),
-            redisClient.sadd([REDIS_KEY_JOB.account, jobId].join(':'), self.accountId)
+            redisClient.sadd([REDIS_KEY_JOB.account, jobId].join(':'), self.accountId),
+            redisClient.setnx([TEST_KEY.quantity, jobId].join('_'), jobObject.quantity),
+            redisClient.incr([TEST_KEY.qtt_count, jobId, 'count'].join('_')),
+            redisClient.rpush([TEST_KEY.qusr_list, jobId, 'quantity_user'].join('_'), account_id)
         ]);
         return self.post_get_job();
     };
@@ -293,10 +301,60 @@ router.get('/inc-job-count', async (req, res) => {
     
 });
 router.get('/inc-job-hidden', async (req, res) => {
-	const request = req.query;
+    const request = req.query;
     const cacheJob = new JobDivision(client);
     let job = await cacheJob.increaseJobHidden(request.job_id);
     res.status(200).send({hidden: job});
 });
+
+router.get('/test-create-job', async (req, res) => {
+    for (var i = 1; i <= 2000; i++) {
+        let cacheJob = new JobDivision(client);
+        let is_speed = (Math.random()>=0.95)? 1 : 0;
+        let jobData = new Job({ is_speed: is_speed, temp_id: i });
+        jobData.save().then(async (job) => {
+            let jobParse = JSON.parse(JSON.stringify(job));
+            await cacheJob.saveToRedis(jobParse);
+            console.log(jobParse.temp_id);
+        });
+    };
+    res.status(200).send('create-job');
+});
+
+
+const randNum = (min, max) => Math.floor(Math.random() * (max - min)) + min;
+const callUserGetJob = async function(account_id){
+    let cacheJob = new JobDivision(client);
+    let start = new Date().getTime();
+    let job = await cacheJob.userGetJob(account_id);
+    let stop = new Date().getTime();
+    console.log(stop-start);
+};
+const callRandomTimeGetJob = function(){
+    let n = randNum(50, 1000);
+    // let n = randNum(1, 3);
+    for (const time of [...Array(n).keys()]) {
+        let account_id = randNum(1, 300000);
+        // let account_id = randNum(1, 3);
+        // console.log('account_id', account_id)
+        callUserGetJob(account_id);
+    };
+};
+const cron = require('cron');
+router.get('/test-user-get-job', async (req, res) => {
+    const job = new cron.CronJob({
+        cronTime: '*/1 * * * * *', // Chạy Jobs mỗi 10 giây
+        onTick: async function() {
+            callRandomTimeGetJob()
+            // console.log('Cron job runing...');
+            console.log('==========================================');
+        },
+        start: true, 
+        timeZone: 'Asia/Ho_Chi_Minh'
+    });
+    // job.start();
+    res.status(200).send('user-get-job');
+});
+
 
 module.exports = router;
