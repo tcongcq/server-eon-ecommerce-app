@@ -326,18 +326,18 @@ const randNum = (min, max) => Math.floor(Math.random() * (max - min)) + min;
 const callUserGetJob = async function(account_id){
     let cacheJob = new JobDivision(client);
     let start = new Date().getTime();
-    let job = await cacheJob.userGetJob(account_id);
-    let stop = new Date().getTime();
-    console.log(stop-start);
+    let account_id = randNum(1, 300000);
+    let host = randNum(3000, 3020);
+    request(['http://localhost:',host,'/user-get-job?account_id=', account_id].join(''), function (error, response, body) {
+        if (error) console.log(error);
+        let stop = new Date().getTime();
+        console.log(stop-start);
+    });
 };
 const callRandomTimeGetJob = function(){
     let n = randNum(50, 1000);
-    // let n = randNum(1, 3);
     for (const time of [...Array(n).keys()]) {
-        let account_id = randNum(1, 300000);
-        // let account_id = randNum(1, 3);
-        // console.log('account_id', account_id)
-        callUserGetJob(account_id);
+        callUserGetJob();
     };
 };
 const cron = require('cron');
