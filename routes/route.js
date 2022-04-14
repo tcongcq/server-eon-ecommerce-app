@@ -323,7 +323,7 @@ router.get('/test-create-job', async (req, res) => {
 
 
 const randNum = (min, max) => Math.floor(Math.random() * (max - min)) + min;
-const callUserGetJob = async function(account_id){
+const callUserGetJob = async function(){
     let cacheJob = new JobDivision(client);
     let start = new Date().getTime();
     let account_id = randNum(1, 300000);
