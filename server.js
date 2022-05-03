@@ -9,9 +9,10 @@ var logger = require('morgan');
 var database = require('./bin/database');
 
 var port = process.env.PORT || 3000;
+var indexRouter = require('./routes/testRoute');
 // var indexRouter = require('./routes/index');
 // var indexRouter = require('./routes/newRoute');
-var indexRouter = require('./routes/route');
+// var indexRouter = require('./routes/route');
 
 var app = express();
 
